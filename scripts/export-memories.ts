@@ -50,23 +50,33 @@ async function exportMemories(query: string, outputFile: string, project?: strin
     console.log(`✅ Found ${summaries.length} session summaries`);
     console.log(`✅ Found ${prompts.length} user prompts`);
 
-    // Get unique memory session IDs from observations and summaries
+    // Collect session IDs referenced by every record type so the export covers
+    // both FK columns (sdk_sessions.memory_session_id and .content_session_id).
+    // Prompts FK on content_session_id; if we only collect memory_session_ids
+    // from observations/summaries, prompts from unrelated sessions fail import.
     const memorySessionIds = new Set<string>();
+    const contentSessionIds = new Set<string>();
     observations.forEach((o) => {
       if (o.memory_session_id) memorySessionIds.add(o.memory_session_id);
     });
     summaries.forEach((s) => {
       if (s.memory_session_id) memorySessionIds.add(s.memory_session_id);
     });
+    prompts.forEach((p) => {
+      if (p.content_session_id) contentSessionIds.add(p.content_session_id);
+    });
 
     // Get SDK sessions metadata via API
     console.log('📡 Fetching SDK sessions metadata...');
     let sessions: SdkSessionRecord[] = [];
-    if (memorySessionIds.size > 0) {
+    if (memorySessionIds.size > 0 || contentSessionIds.size > 0) {
       const sessionsResponse = await fetch(`${baseUrl}/api/sdk-sessions/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sdkSessionIds: Array.from(memorySessionIds) })
+        body: JSON.stringify({
+          memorySessionIds: Array.from(memorySessionIds),
+          contentSessionIds: Array.from(contentSessionIds)
+        })
       });
       if (sessionsResponse.ok) {
         sessions = await sessionsResponse.json();

@@ -190,23 +190,32 @@ export class DataRoutes extends BaseRouteHandler {
   /**
    * Get SDK sessions by SDK session IDs
    * POST /api/sdk-sessions/batch
-   * Body: { memorySessionIds: string[] }
+   * Body: { memorySessionIds: string[], contentSessionIds?: string[] }
+   * Returns the union of sessions matching either ID set. Needed so exports
+   * cover both observation FKs (memory_session_id) and user_prompt FKs
+   * (content_session_id).
    */
   private handleGetSdkSessionsByIds = this.wrapHandler((req: Request, res: Response): void => {
-    let { memorySessionIds } = req.body;
+    let { memorySessionIds, contentSessionIds } = req.body;
 
-    // Coerce string-encoded arrays from MCP clients (e.g. '["a","b"]' or "a,b")
-    if (typeof memorySessionIds === 'string') {
-      try { memorySessionIds = JSON.parse(memorySessionIds); } catch { memorySessionIds = memorySessionIds.split(',').map((s: string) => s.trim()); }
-    }
+    const coerce = (val: unknown): unknown => {
+      if (typeof val !== 'string') return val;
+      try { return JSON.parse(val); } catch { return val.split(',').map((s: string) => s.trim()); }
+    };
+    memorySessionIds = coerce(memorySessionIds);
+    contentSessionIds = coerce(contentSessionIds);
 
     if (!Array.isArray(memorySessionIds)) {
       this.badRequest(res, 'memorySessionIds must be an array');
       return;
     }
+    if (contentSessionIds !== undefined && !Array.isArray(contentSessionIds)) {
+      this.badRequest(res, 'contentSessionIds must be an array when provided');
+      return;
+    }
 
     const store = this.dbManager.getSessionStore();
-    const sessions = store.getSdkSessionsBySessionIds(memorySessionIds);
+    const sessions = store.getSdkSessionsBySessionIds(memorySessionIds, contentSessionIds ?? []);
     res.json(sessions);
   });
 

@@ -453,15 +453,15 @@ ${o.stack}`:` ${o.message}`:this.getLevel()===0&&typeof o=="object"?m=`
       FROM sdk_sessions
       WHERE id = ?
       LIMIT 1
-    `).get(e)||null}getSdkSessionsBySessionIds(e){if(e.length===0)return[];let t=e.map(()=>"?").join(",");return this.db.prepare(`
+    `).get(e)||null}getSdkSessionsBySessionIds(e,t=[]){if(e.length===0&&t.length===0)return[];let s=[],n=[];return e.length>0&&(s.push(`memory_session_id IN (${e.map(()=>"?").join(",")})`),n.push(...e)),t.length>0&&(s.push(`content_session_id IN (${t.map(()=>"?").join(",")})`),n.push(...t)),this.db.prepare(`
       SELECT id, content_session_id, memory_session_id, project,
              COALESCE(platform_source, '${h}') as platform_source,
              user_prompt, custom_title,
              started_at, started_at_epoch, completed_at, completed_at_epoch, status
       FROM sdk_sessions
-      WHERE memory_session_id IN (${t})
+      WHERE ${s.join(" OR ")}
       ORDER BY started_at_epoch DESC
-    `).all(...e)}getPromptNumberFromUserPrompts(e){return this.db.prepare(`
+    `).all(...n)}getPromptNumberFromUserPrompts(e){return this.db.prepare(`
       SELECT COUNT(*) as count FROM user_prompts WHERE content_session_id = ?
     `).get(e).count}createSDKSession(e,t,s,n,o){let i=new Date,a=i.getTime(),d=Bt(n,o),u=d.platformSource??h,m=this.db.prepare(`
       SELECT id, platform_source FROM sdk_sessions WHERE content_session_id = ?

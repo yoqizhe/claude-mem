@@ -1605,7 +1605,10 @@ export class SessionStore {
    * Get SDK sessions by SDK session IDs
    * Used for exporting session metadata
    */
-  getSdkSessionsBySessionIds(memorySessionIds: string[]): {
+  getSdkSessionsBySessionIds(
+    memorySessionIds: string[],
+    contentSessionIds: string[] = []
+  ): {
     id: number;
     content_session_id: string;
     memory_session_id: string;
@@ -1619,20 +1622,31 @@ export class SessionStore {
     completed_at_epoch: number | null;
     status: string;
   }[] {
-    if (memorySessionIds.length === 0) return [];
+    if (memorySessionIds.length === 0 && contentSessionIds.length === 0) return [];
 
-    const placeholders = memorySessionIds.map(() => '?').join(',');
+    const clauses: string[] = [];
+    const params: string[] = [];
+
+    if (memorySessionIds.length > 0) {
+      clauses.push(`memory_session_id IN (${memorySessionIds.map(() => '?').join(',')})`);
+      params.push(...memorySessionIds);
+    }
+    if (contentSessionIds.length > 0) {
+      clauses.push(`content_session_id IN (${contentSessionIds.map(() => '?').join(',')})`);
+      params.push(...contentSessionIds);
+    }
+
     const stmt = this.db.prepare(`
       SELECT id, content_session_id, memory_session_id, project,
              COALESCE(platform_source, '${DEFAULT_PLATFORM_SOURCE}') as platform_source,
              user_prompt, custom_title,
              started_at, started_at_epoch, completed_at, completed_at_epoch, status
       FROM sdk_sessions
-      WHERE memory_session_id IN (${placeholders})
+      WHERE ${clauses.join(' OR ')}
       ORDER BY started_at_epoch DESC
     `);
 
-    return stmt.all(...memorySessionIds) as any[];
+    return stmt.all(...params) as any[];
   }
 
 

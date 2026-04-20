@@ -29,27 +29,42 @@ export function getSessionById(db: Database, id: number): SessionBasic | null {
 }
 
 /**
- * Get SDK sessions by memory session IDs
- * Used for exporting session metadata
+ * Get SDK sessions by memory session IDs and/or content session IDs
+ * Used for exporting session metadata. Both observation FKs (memory_session_id)
+ * and user_prompt FKs (content_session_id) must be covered so imports don't
+ * fail with FK constraint errors when prompts reference sessions that have
+ * no observations/summaries of their own.
  */
 export function getSdkSessionsBySessionIds(
   db: Database,
-  memorySessionIds: string[]
+  memorySessionIds: string[],
+  contentSessionIds: string[] = []
 ): SessionFull[] {
-  if (memorySessionIds.length === 0) return [];
+  if (memorySessionIds.length === 0 && contentSessionIds.length === 0) return [];
 
-  const placeholders = memorySessionIds.map(() => '?').join(',');
+  const clauses: string[] = [];
+  const params: string[] = [];
+
+  if (memorySessionIds.length > 0) {
+    clauses.push(`memory_session_id IN (${memorySessionIds.map(() => '?').join(',')})`);
+    params.push(...memorySessionIds);
+  }
+  if (contentSessionIds.length > 0) {
+    clauses.push(`content_session_id IN (${contentSessionIds.map(() => '?').join(',')})`);
+    params.push(...contentSessionIds);
+  }
+
   const stmt = db.prepare(`
     SELECT id, content_session_id, memory_session_id, project,
            COALESCE(platform_source, 'claude') as platform_source,
            user_prompt, custom_title,
            started_at, started_at_epoch, completed_at, completed_at_epoch, status
     FROM sdk_sessions
-    WHERE memory_session_id IN (${placeholders})
+    WHERE ${clauses.join(' OR ')}
     ORDER BY started_at_epoch DESC
   `);
 
-  return stmt.all(...memorySessionIds) as SessionFull[];
+  return stmt.all(...params) as SessionFull[];
 }
 
 /**
