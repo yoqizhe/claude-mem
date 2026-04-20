@@ -52,3 +52,6 @@ claude-opus-4-7+claude-mem.*.json
 logs/run_evaluation/
 .venv-swebench/
 .docker-blowout-data/
+
+# Exported memory JSON bundles (from scripts/export-memories.ts)
+*-memories.json
